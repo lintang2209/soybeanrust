@@ -1,31 +1,53 @@
 import streamlit as st
 import numpy as np
 from PIL import Image
-import tensorflow as tf
 from ultralytics import YOLO
 
-# ==== KONFIGURASI ====
-USE_MODEL = "YOLO"  # "CNN" atau "YOLO"
-CNN_MODEL_PATH = "models/cnn_soybean_rust.keras"
-YOLO_MODEL_PATH = "models/best.pt"
+# Judul aplikasi
+st.set_page_config(page_title="Deteksi Soybean Rust", page_icon="🌱", layout="centered")
+st.title("🌱 Deteksi Penyakit Daun Kedelai (Soybean Rust)")
+st.write("Unggah gambar daun kedelai, lalu model akan mendeteksi apakah **Sehat** atau **Soybean Rust**.")
 
-# ==== LOAD MODEL ====
-cnn_model = None
-yolo_model = None
-class_names = ["Daun Sehat", "Soybean Rust"]
+# Load model YOLO
+@st.cache_resource
+def load_model():
+    return YOLO("models/best.pt")
 
-if USE_MODEL == "CNN":
-    cnn_model = tf.keras.models.load_model(CNN_MODEL_PATH)
+model = load_model()
 
-elif USE_MODEL == "YOLO":
-    yolo_model = YOLO(YOLO_MODEL_PATH)
-
-# ==== UI ====
-st.title("📷 Deteksi Penyakit Daun Kedelai (CNN vs YOLOv8)")
-st.write("Upload gambar daun kedelai untuk deteksi penyakit *Soybean Rust*.")
-
-uploaded_file = st.file_uploader("Pilih gambar daun...", type=["jpg", "png", "jpeg"])
+# Upload gambar
+uploaded_file = st.file_uploader("📤 Upload gambar daun kedelai", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="🖼️ Gambar yang diupload", use_column_wid
+    # Buka gambar
+    image = Image.open(uploaded_file)
+    st.image(image, caption="🖼️ Gambar yang diupload", use_column_width=True)
+
+    # Prediksi
+    results = model.predict(image, conf=0.25)
+
+    # Ambil hasil deteksi
+    if results and len(results[0].boxes) > 0:
+        names = results[0].names
+        probs = results[0].probs if hasattr(results[0], "probs") else None
+
+        detected_classes = []
+        for box in results[0].boxes:
+            cls_id = int(box.cls[0])
+            cls_name = names[cls_id]
+            detected_classes.append(cls_name)
+
+        st.subheader("📊 Hasil Deteksi")
+
+        if "soybean rust" in detected_classes:
+            st.error("🍂 Daun terdeteksi **Soybean Rust (sakit)**!")
+        elif "daun sehat" in detected_classes:
+            st.success("🌿 Daun terdeteksi **Sehat** ✅")
+        else:
+            st.warning("⚠️ Tidak ada daun yang terdeteksi atau kelas tidak dikenal.")
+
+        # Tampilkan gambar hasil deteksi (dengan bounding box)
+        res_img = results[0].plot()  # gambar numpy array
+        st.image(res_img, caption="🔍 Hasil Deteksi", use_column_width=True)
+    else:
+        st.warning("⚠️ Tidak ada objek terdeteksi di gambar.")
