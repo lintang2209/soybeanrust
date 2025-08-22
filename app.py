@@ -8,8 +8,8 @@ import os
 # ===============================
 # CONFIG
 # ===============================
-CNN_MODEL_PATH = "cnn_soybean_rust.keras"   # path model CNN
-YOLO_MODEL_PATH = "best.pt"  # path model YOLOv8
+CNN_MODEL_PATH = "models/cnn_soybean_rust.keras"   # path model CNN
+YOLO_MODEL_PATH = "models/best.pt"  # path model YOLOv8
 CLASS_NAMES = ["Daun Sehat", "Soybean Rust"]
 
 # Load CNN model (jika ada)
