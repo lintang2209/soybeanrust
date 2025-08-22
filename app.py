@@ -15,13 +15,13 @@ st.write("Aplikasi ini menggunakan dua model berbeda (CNN dan YOLOv8) untuk mend
 @st.cache_resource
 def load_cnn_model():
     # Ganti 'cnn_model.h5' dengan nama file model CNN Anda
-    model = tf.keras.models.load_model('cnn_model.h5')
+    model = tf.keras.models.load_model('models/cnn_soybean_rust.keras')
     return model
 
 @st.cache_resource
 def load_yolo_model():
     # Ganti 'yolov8_model.pt' dengan nama file model YOLOv8 Anda
-    model = YOLO('yolov8_model.pt')
+    model = YOLO('models/best.pt')
     return model
 
 # --- LOAD CLASS NAMES ---
