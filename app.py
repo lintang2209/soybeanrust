@@ -3,6 +3,7 @@ import numpy as np
 from PIL import Image
 import tensorflow as tf
 from ultralytics import YOLO
+import torch
 
 # Path model di repo
 CNN_MODEL_PATH = "models/cnn_soybean_rust.keras"
@@ -20,6 +21,7 @@ st.title("📷 Deteksi Penyakit Daun Kedelai (Pipeline CNN → YOLOv8)")
 uploaded_file = st.file_uploader("Unggah gambar daun kedelai", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
+    # ==== Tampilkan gambar upload ====
     image = Image.open(uploaded_file).convert("RGB")
     st.image(image, caption="Gambar yang diunggah", use_column_width=True)
 
@@ -59,10 +61,12 @@ if uploaded_file:
             area = (w * h) / (im_w * im_h)
             conf_score = float(b.conf[0])
 
+            # filter area dan confidence
             if 0.01 <= area <= 0.40 and conf_score >= 0.45:
                 filtered_boxes.append(b)
 
         if filtered_boxes:
+            # simpan kembali hanya bbox yang lolos filter
             res.boxes = type(res.boxes)(torch.stack([b.data[0] for b in filtered_boxes]))
             st.image(res.plot(), caption="Hasil deteksi YOLOv8 (difilter)", use_column_width=True)
         else:
