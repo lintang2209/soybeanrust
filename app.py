@@ -1,53 +1,82 @@
 import streamlit as st
 import numpy as np
 from PIL import Image
+import tensorflow as tf
 from ultralytics import YOLO
 
-# Judul aplikasi
-st.set_page_config(page_title="Deteksi Soybean Rust", page_icon="🌱", layout="centered")
-st.title("🌱 Deteksi Penyakit Daun Kedelai (Soybean Rust)")
-st.write("Unggah gambar daun kedelai, lalu model akan mendeteksi apakah **Sehat** atau **Soybean Rust**.")
+# =============================
+# Path model
+# =============================
+CNN_MODEL_PATH = "models/cnn_soybean_rust.keras"
+YOLO_MODEL_PATH = "models/best.pt"
 
-# Load model YOLO
+# =============================
+# Load CNN Model
+# =============================
 @st.cache_resource
-def load_model():
-    return YOLO("models/best.pt")
+def load_cnn_model():
+    return tf.keras.models.load_model(CNN_MODEL_PATH)
 
-model = load_model()
+# =============================
+# Load YOLO Model
+# =============================
+@st.cache_resource
+def load_yolo_model():
+    return YOLO(YOLO_MODEL_PATH)
+
+cnn_model = load_cnn_model()
+yolo_model = load_yolo_model()
+
+# =============================
+# Kelas CNN
+# =============================
+CLASS_NAMES = ["daun sehat", "soybean rust"]
+
+# =============================
+# Streamlit UI
+# =============================
+st.title("🍃 Deteksi Penyakit Daun Kedelai (CNN & YOLOv8)")
+st.write("Upload gambar daun kedelai untuk memprediksi penyakit menggunakan **CNN** dan **YOLOv8**.")
 
 # Upload gambar
-uploaded_file = st.file_uploader("📤 Upload gambar daun kedelai", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Pilih gambar daun kedelai", type=["jpg", "jpeg", "png"])
+
+# Confidence Threshold Slider
+conf_threshold = st.slider("Confidence Threshold (YOLO)", 0.05, 1.0, 0.25, 0.05)
 
 if uploaded_file is not None:
-    # Buka gambar
-    image = Image.open(uploaded_file)
-    st.image(image, caption="🖼️ Gambar yang diupload", use_column_width=True)
+    image = Image.open(uploaded_file).convert("RGB")
+    st.image(image, caption="Gambar yang diupload", use_column_width=True)
 
-    # Prediksi
-    results = model.predict(image, conf=0.25)
+    # =============================
+    # Prediksi CNN
+    # =============================
+    st.subheader("🔹 Prediksi CNN")
+    img_resized = image.resize((224, 224))
+    img_array = np.array(img_resized) / 255.0
+    img_array = np.expand_dims(img_array, axis=0)
 
-    # Ambil hasil deteksi
-    if results and len(results[0].boxes) > 0:
-        names = results[0].names
-        probs = results[0].probs if hasattr(results[0], "probs") else None
+    predictions = cnn_model.predict(img_array)
+    score = np.max(predictions)
+    predicted_class = CLASS_NAMES[np.argmax(predictions)]
 
-        detected_classes = []
+    st.write(f"**Kelas Prediksi:** {predicted_class}")
+    st.write(f"**Confidence:** {score:.2f}")
+
+    # =============================
+    # Prediksi YOLOv8
+    # =============================
+    st.subheader("🔹 Prediksi YOLOv8")
+    results = yolo_model.predict(np.array(image), conf=conf_threshold)
+
+    if len(results[0].boxes) > 0:
         for box in results[0].boxes:
             cls_id = int(box.cls[0])
-            cls_name = names[cls_id]
-            detected_classes.append(cls_name)
+            conf = float(box.conf[0])
+            label = results[0].names[cls_id]
 
-        st.subheader("📊 Hasil Deteksi")
-
-        if "soybean rust" in detected_classes:
-            st.error("🍂 Daun terdeteksi **Soybean Rust (sakit)**!")
-        elif "daun sehat" in detected_classes:
-            st.success("🌿 Daun terdeteksi **Sehat** ✅")
-        else:
-            st.warning("⚠️ Tidak ada daun yang terdeteksi atau kelas tidak dikenal.")
-
-        # Tampilkan gambar hasil deteksi (dengan bounding box)
-        res_img = results[0].plot()  # gambar numpy array
-        st.image(res_img, caption="🔍 Hasil Deteksi", use_column_width=True)
+            st.write(f"- **{label}** dengan confidence **{conf:.2f}**")
+        st.image(results[0].plot(), caption="Hasil Deteksi YOLOv8", use_column_width=True)
     else:
         st.warning("⚠️ Tidak ada objek terdeteksi di gambar.")
+
