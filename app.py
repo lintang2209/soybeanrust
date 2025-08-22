@@ -15,7 +15,7 @@ if USE_MODEL == "CNN":
 
 elif USE_MODEL == "YOLO":
     from ultralytics import YOLO
-    MODEL_PATH = "yolov8_soybean_rust.pt"
+    MODEL_PATH = "best.pt"
     yolo_model = YOLO(MODEL_PATH)
 
 # ==== UI ====
