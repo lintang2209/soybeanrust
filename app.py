@@ -1,66 +1,82 @@
 import streamlit as st
-import tensorflow as tf
 import numpy as np
 from PIL import Image
-import torch
-import os
+import tensorflow as tf
+from ultralytics import YOLO
 
-# ===============================
-# CONFIG
-# ===============================
-CNN_MODEL_PATH = "models/cnn_soybean_rust.keras"   # path model CNN
-YOLO_MODEL_PATH = "models/best.pt"  # path model YOLOv8
-CLASS_NAMES = ["Daun Sehat", "Soybean Rust"]
+# =============================
+# Path model
+# =============================
+CNN_MODEL_PATH = "models/cnn_soybean_rust.keras"
+YOLO_MODEL_PATH = "models/best.pt"
 
-# Load CNN model (jika ada)
-cnn_model = None
-if os.path.exists(CNN_MODEL_PATH):
-    try:
-        cnn_model = tf.keras.models.load_model(CNN_MODEL_PATH)
-    except Exception as e:
-        st.error(f"Gagal load CNN model: {e}")
+# =============================
+# Load CNN Model
+# =============================
+@st.cache_resource
+def load_cnn_model():
+    return tf.keras.models.load_model(CNN_MODEL_PATH)
 
-# Load YOLOv8 model (jika ada)
-yolo_model = None
-if os.path.exists(YOLO_MODEL_PATH):
-    try:
-        yolo_model = torch.hub.load("ultralytics/yolov5", "custom", path=YOLO_MODEL_PATH, force_reload=True)
-    except Exception as e:
-        st.error(f"Gagal load YOLOv8 model: {e}")
+# =============================
+# Load YOLO Model
+# =============================
+@st.cache_resource
+def load_yolo_model():
+    return YOLO(YOLO_MODEL_PATH)
 
-# ===============================
-# STREAMLIT UI
-# ===============================
-st.title("🌱 Soybean Rust Detection")
-st.write("Pilih model deteksi (CNN untuk klasifikasi, YOLOv8 untuk deteksi bounding box)")
+cnn_model = load_cnn_model()
+yolo_model = load_yolo_model()
 
-model_choice = st.radio("Pilih Model:", ["CNN", "YOLOv8"])
+# =============================
+# Kelas CNN
+# =============================
+CLASS_NAMES = ["daun sehat", "soybean rust"]
 
-uploaded_file = st.file_uploader("Upload gambar daun kedelai", type=["jpg", "jpeg", "png"])
+# =============================
+# Streamlit UI
+# =============================
+st.title("🍃 Deteksi Penyakit Daun Kedelai (CNN & YOLOv8)")
+st.write("Upload gambar daun kedelai untuk memprediksi penyakit menggunakan **CNN** dan **YOLOv8**.")
+
+# Upload gambar
+uploaded_file = st.file_uploader("Pilih gambar daun kedelai", type=["jpg", "jpeg", "png"])
+
+# Confidence Threshold Slider
+conf_threshold = st.slider("Confidence Threshold (YOLO)", 0.05, 1.0, 0.25, 0.05)
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="Gambar diunggah", use_column_width=True)
+    st.image(image, caption="Gambar yang diupload", use_column_width=True)
 
-    if model_choice == "CNN" and cnn_model:
-        # Preprocessing
-        img_resized = image.resize((224, 224))  # samakan dengan ukuran training CNN
-        img_array = tf.keras.utils.img_to_array(img_resized)
-        img_array = np.expand_dims(img_array, axis=0) / 255.0
+    # =============================
+    # Prediksi CNN
+    # =============================
+    st.subheader("🔹 Prediksi CNN")
+    img_resized = image.resize((224, 224))
+    img_array = np.array(img_resized) / 255.0
+    img_array = np.expand_dims(img_array, axis=0)
 
-        # Prediksi
-        prediction = cnn_model.predict(img_array)
-        class_idx = np.argmax(prediction)
-        confidence = float(np.max(prediction)) * 100
+    predictions = cnn_model.predict(img_array)
+    score = np.max(predictions)
+    predicted_class = CLASS_NAMES[np.argmax(predictions)]
 
-        st.success(f"**Prediksi: {CLASS_NAMES[class_idx]} ({confidence:.2f}%)**")
+    st.write(f"**Kelas Prediksi:** {predicted_class}")
+    st.write(f"**Confidence:** {score:.2f}")
 
-    elif model_choice == "YOLOv8" and yolo_model:
-        # Run YOLO inference
-        results = yolo_model(image)
+    # =============================
+    # Prediksi YOLOv8
+    # =============================
+    st.subheader("🔹 Prediksi YOLOv8")
+    results = yolo_model.predict(np.array(image), conf=conf_threshold)
 
-        # Tampilkan hasil deteksi
-        st.image(np.squeeze(results.render()), caption="Hasil Deteksi YOLOv8", use_column_width=True)
+    if len(results[0].boxes) > 0:
+        for box in results[0].boxes:
+            cls_id = int(box.cls[0])
+            conf = float(box.conf[0])
+            label = results[0].names[cls_id]
 
+            st.write(f"- **{label}** dengan confidence **{conf:.2f}**")
+        st.image(results[0].plot(), caption="Hasil Deteksi YOLOv8", use_column_width=True)
     else:
-        st.warning("Model belum tersedia atau gagal diload.")
+        st.warning("⚠️ Tidak ada objek terdeteksi di gambar.")
+
