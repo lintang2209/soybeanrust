@@ -4,7 +4,7 @@ from PIL import Image
 import tensorflow as tf
 from ultralytics import YOLO
 
-# Path model
+# Path model di repo
 CNN_MODEL_PATH = "models/cnn_soybean_rust.keras"
 YOLO_MODEL_PATH = "models/best.pt"
 
@@ -24,7 +24,7 @@ if uploaded_file:
     st.image(image, caption="Gambar yang diunggah", use_column_width=True)
 
     # ==== Tahap 1: Prediksi CNN ====
-    img_resized = image.resize((224, 224))  # sesuaikan ukuran input CNN
+    img_resized = image.resize((224, 224))
     img_array = np.array(img_resized) / 255.0
     img_array = np.expand_dims(img_array, axis=0)
     cnn_pred = cnn_model.predict(img_array)
@@ -36,18 +36,17 @@ if uploaded_file:
     st.write(f"Prediksi: **{cnn_class}**")
     st.write(f"Probabilitas: {cnn_conf*100:.2f}%")
 
-    # ==== Tahap 2: Prediksi YOLO hanya jika CNN prediksi Soybean Rust ====
+    # ==== Tahap 2: YOLO hanya jika CNN prediksi Soybean Rust ====
     if cnn_class == "Soybean Rust":
         st.subheader("Hasil Prediksi YOLOv8")
         yolo_results = yolo_model.predict(
             np.array(image),
             imgsz=640,
-            conf=0.45,  # dinaikkan
-            iou=0.65,   # NMS lebih ketat
+            conf=0.45,
+            iou=0.65,
             verbose=False
         )
 
-        # Ambil hasil pertama
         res = yolo_results[0]
         im_h, im_w = res.orig_img.shape[:2]
 
@@ -60,19 +59,13 @@ if uploaded_file:
             area = (w * h) / (im_w * im_h)
             conf_score = float(b.conf[0])
 
-            # Terima hanya jika area di 1%–40% dari gambar dan confidence ≥ 0.45
             if 0.01 <= area <= 0.40 and conf_score >= 0.45:
                 filtered_boxes.append(b)
 
-        # Ganti prediksi asli dengan hasil filter
         if filtered_boxes:
-            import torch
             res.boxes = type(res.boxes)(torch.stack([b.data[0] for b in filtered_boxes]))
+            st.image(res.plot(), caption="Hasil deteksi YOLOv8 (difilter)", use_column_width=True)
         else:
             st.warning("Tidak ada lesi terdeteksi sesuai kriteria filter.")
-
-        # Tampilkan hasil deteksi
-        yolo_img = res.plot()
-        st.image(yolo_img, caption="Hasil deteksi YOLOv8 (difilter)", use_column_width=True)
     else:
         st.success("Daun terdeteksi SEHAT oleh CNN, YOLO tidak dijalankan.")
