@@ -38,15 +38,17 @@ if uploaded_file is not None:
         class_id = np.argmax(prediction)
         confidence = np.max(prediction)
 
-        st.write(f"### Prediksi: {class_names[class_id]}")
-        st.write(f"Confidence: {confidence:.2f}")
+        if class_names[class_id].lower() == "daun sehat":
+            st.success(f"✅ Prediksi: {class_names[class_id]} (confidence {confidence:.2f})")
+        else:
+            st.error(f"⚠️ Prediksi: {class_names[class_id]} (confidence {confidence:.2f})")
 
     elif USE_MODEL == "YOLO":
         # Jalankan deteksi
         results = yolo_model(image)
 
         # Tampilkan hasil deteksi dengan bounding box
-        results_img = results[0].plot()  # hasil deteksi jadi array (BGR)
+        results_img = results[0].plot()
         st.image(results_img, caption="Hasil Deteksi YOLOv8", use_column_width=True)
 
         # Ambil info kelas + confidence
@@ -54,4 +56,9 @@ if uploaded_file is not None:
             for box in r.boxes:
                 cls_id = int(box.cls[0])
                 conf = float(box.conf[0])
-                st.write(f"Deteksi: {r.names[cls_id]} (confidence {conf:.2f})")
+                label = r.names[cls_id]
+
+                if label.lower() == "daun sehat":
+                    st.success(f"✅ Deteksi: {label} (confidence {conf:.2f})")
+                else:
+                    st.error(f"⚠️ Deteksi: {label} (confidence {conf:.2f})")
